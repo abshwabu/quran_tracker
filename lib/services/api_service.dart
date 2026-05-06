@@ -6,7 +6,7 @@ class ApiService {
   final Dio _transcriptionDio = Dio(BaseOptions(
     baseUrl: 'http://109.199.121.222:8000',
     connectTimeout: const Duration(seconds: 30),
-    receiveTimeout: const Duration(seconds: 60),
+    receiveTimeout: const Duration(seconds: 120),
   ));
 
   final Dio _quranDio = Dio(BaseOptions(
