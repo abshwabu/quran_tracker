@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart'; // Add this for MediaType
 import '../models/quran_models.dart';
 
 class ApiService {
@@ -17,7 +18,11 @@ class ApiService {
   Future<Map<String, dynamic>?> transcribeAudio(String filePath) async {
     try {
       final formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(filePath, filename: 'recitation.wav'),
+        'file': await MultipartFile.fromFile(
+          filePath, 
+          filename: 'recitation.wav',
+          contentType: MediaType('audio', 'wav'), // Explicitly set content type
+        ),
       });
 
       final response = await _transcriptionDio.post('/transcribe', data: formData);
