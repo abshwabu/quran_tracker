@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import torch
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, GenerationConfig
 import os
@@ -8,6 +9,14 @@ import re
 import traceback
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Upgrade to Medium model for highest accuracy
 # Model size: ~1.5GB. Memory requirement: ~3GB RAM.
