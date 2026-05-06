@@ -156,12 +156,14 @@ class RecitationNotifier extends Notifier<RecitationState> {
             lastTranscription: rawTranscription,
           );
         } else {
+          final errorMessage = transcriptionResult?['error'] ?? transcriptionResult?['detail'] ?? 'Transcription failed';
           state = state.copyWith(
-            error: 'Transcription failed', 
+            error: errorMessage, 
             isTranscribing: false
           );
         }
-      } else {
+      }
+ else {
         state = state.copyWith(
           error: 'Failed to save recording', 
           isTranscribing: false

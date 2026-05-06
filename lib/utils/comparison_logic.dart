@@ -38,46 +38,48 @@ class ComparisonLogic {
 
   /// Compares two strings and returns a list of word-by-word feedback.
   static List<ComparisonResult> compare(String original, String transcribed) {
-    // Trim and normalize transcription
     final normalizedTranscribed = normalize(transcribed);
     final transcribedWords = normalizedTranscribed
         .split(RegExp(r'\s+'))
         .where((w) => w.isNotEmpty)
         .toList();
 
-    // Original words with diacritics for display
     final originalWordsWithDiacritics = original
         .split(RegExp(r'\s+'))
         .where((w) => w.isNotEmpty)
         .toList();
+        
+    final normalizedOriginalWords = originalWordsWithDiacritics
+        .map((w) => normalize(w))
+        .toList();
 
-    List<ComparisonResult> results = [];
+    // Use a basic alignment approach: 
+    // For each word in original, find the best match in the transcribed words
+    // but keep track of the progress to avoid backward matching.
     
-    // We use a search window to find the word in the transcription
-    int lastFoundIndex = -1;
+    List<ComparisonResult> results = [];
+    int currentTranscribedIdx = 0;
 
     for (int i = 0; i < originalWordsWithDiacritics.length; i++) {
-      final displayWord = originalWordsWithDiacritics[i];
-      final targetWord = normalize(displayWord);
-
-      bool isCorrect = false;
-
-      // Look ahead in the transcribed words within a window
-      // We'll use a slightly larger window (5 words) to be safe
-      int searchStart = max(0, lastFoundIndex + 1);
-      int searchEnd = min(transcribedWords.length, searchStart + 5);
-
-      for (int j = searchStart; j < searchEnd; j++) {
-        if (_areWordsSimilar(targetWord, transcribedWords[j])) {
-          isCorrect = true;
-          lastFoundIndex = j;
+      final target = normalizedOriginalWords[i];
+      bool found = false;
+      
+      // Search window: allow looking ahead to find the word
+      // if the user skipped something or the transcription added noise.
+      // We look ahead up to 8 words to handle moderate skips.
+      int lookAheadLimit = min(currentTranscribedIdx + 8, transcribedWords.length);
+      
+      for (int j = currentTranscribedIdx; j < lookAheadLimit; j++) {
+        if (_areWordsSimilar(target, transcribedWords[j])) {
+          found = true;
+          currentTranscribedIdx = j + 1; // Advance pointer
           break;
         }
       }
 
       results.add(ComparisonResult(
-        word: displayWord,
-        isCorrect: isCorrect,
+        word: originalWordsWithDiacritics[i],
+        isCorrect: found,
       ));
     }
 

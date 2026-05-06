@@ -25,10 +25,16 @@ class ApiService {
       if (response.statusCode == 200) {
         return response.data;
       }
-      return null;
-    } catch (e) {
+      return {'error': 'Server error: ${response.statusCode}'};
+    } on DioException catch (e) {
       print('Error transcribing audio: $e');
-      return null;
+      if (e.response != null) {
+        return e.response?.data is Map ? e.response?.data : {'error': 'Server error: ${e.response?.statusCode}'};
+      }
+      return {'error': 'Network error: ${e.message}'};
+    } catch (e) {
+      print('Unexpected error: $e');
+      return {'error': 'Unexpected error: $e'};
     }
   }
 
