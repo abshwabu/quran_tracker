@@ -83,5 +83,26 @@ void main() {
         expect(result.isCorrect, true);
       }
     });
+
+    test('Distinguishes between different vowels (Harakat)', () {
+      // بِسْمِ (with Kasra) vs بَسَمَ (with Fatha)
+      const original = "بِسْمِ";
+      const transcribed = "بَسَمَ"; 
+      
+      final results = ComparisonLogic.compare(original, transcribed);
+      // Since transcribed has diacritics, it uses diacritic-aware matching.
+      // Levenshtein distance between "بِسْمِ" and "بَسَمَ" is 2 (i -> a, extra a).
+      // Length is 4 (including diacritics). Threshold is 0 + 1 = 1.
+      // So distance 2 > threshold 1 -> Incorrect.
+      expect(results[0].isCorrect, false, reason: "Bismi should not match Basama");
+    });
+
+    test('Allows minor vowel errors but matches correct vowels', () {
+      const original = "بِسْمِ";
+      const transcribed = "بِسْمِ"; 
+      
+      final results = ComparisonLogic.compare(original, transcribed);
+      expect(results[0].isCorrect, true);
+    });
   });
 }

@@ -1,9 +1,10 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../models/quran_models.dart';
 
 class ApiService {
   final Dio _transcriptionDio = Dio(BaseOptions(
-    baseUrl: 'http://192.168.1.10:8000',
+    baseUrl: kIsWeb ? '/api' : 'http://10.76.236.68:8000',
     connectTimeout: const Duration(seconds: 30),
     receiveTimeout: const Duration(seconds: 60),
   ));

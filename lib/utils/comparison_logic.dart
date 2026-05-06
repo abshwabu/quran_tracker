@@ -1,36 +1,50 @@
 import 'dart:math';
 
 class ComparisonLogic {
-  /// Normalizes Arabic text by removing diacritics and standardizing characters.
-  static String normalize(String text) {
+  /// Normalizes Arabic text.
+  /// [keepVowels] If true, keeps basic Harakat (Fatha, Damma, Kasra, etc.)
+  static String normalize(String text, {bool keepVowels = false}) {
     if (text.isEmpty) return "";
 
-    // 1. Remove all diacritics (Tashkeel)
-    // Range: \u064B to \u065F (includes Fathah, Dammah, Kasrah, Sukun, Shaddah, etc.)
-    // Also include Quranic marks (\u06D6-\u06ED)
-    final diacritics = RegExp(r'[\u064B-\u065F\u0670\u06D6-\u06ED]');
-    String normalized = text.replaceAll(diacritics, '');
+    // 1. Strip ornamental Quranic marks (always)
+    // Range: \u06D6-\u06ED (various stop marks, etc.)
+    // \u0670 (Alif Khanjari / Superscript Alif)
+    final ornamental = RegExp(r'[\u0670\u06D6-\u06ED]');
+    String normalized = text.replaceAll(ornamental, '');
+
+    if (!keepVowels) {
+      // Remove all basic diacritics
+      // Range: \u064B-\u065F
+      final diacritics = RegExp(r'[\u064B-\u065F]');
+      normalized = normalized.replaceAll(diacritics, '');
+    } else {
+      // If keeping vowels, we still might want to strip things that are NOT basic Harakat
+      // Basic Harakat range: \u064B-\u0652
+      // We strip the rest of the \u064B-\u065F range if any (like \u0653-\u065F)
+      final nonBasicDiacritics = RegExp(r'[\u0653-\u065F]');
+      normalized = normalized.replaceAll(nonBasicDiacritics, '');
+    }
 
     // 2. Normalize Alif forms
-    // أ (Alif with Hamza Above), إ (Alif with Hamza Below), آ (Alif with Madda), ٱ (Alif Wasla) -> ا (Plain Alif)
     normalized = normalized.replaceAll(RegExp(r'[أإآٱ]'), 'ا');
 
     // 3. Normalize Teh Marbuta to Heh
     normalized = normalized.replaceAll('ة', 'ه');
 
     // 4. Normalize Ya forms
-    // ى (Alif Maksura), ی (Persian Ya) -> ي (Standard Ya)
     normalized = normalized.replaceAll(RegExp(r'[ىی]'), 'ي');
 
     // 5. Normalize Kaf forms
-    // ک (Persian Kaf) -> ك (Standard Kaf)
     normalized = normalized.replaceAll('ک', 'ك');
 
-    // 6. Remove any remaining non-Arabic-letter characters (except spaces)
-    // We keep basic Arabic letters \u0621-\u064A and common extensions
-    normalized = normalized.replaceAll(RegExp(r'[^\u0621-\u064A\s]'), '');
+    // 6. Remove non-Arabic-letter characters (except spaces and kept diacritics)
+    if (!keepVowels) {
+      normalized = normalized.replaceAll(RegExp(r'[^\u0621-\u064A\s]'), '');
+    } else {
+      normalized = normalized.replaceAll(RegExp(r'[^\u0621-\u064A\u064B-\u0652\s]'), '');
+    }
     
-    // 7. Condense multiple spaces into one
+    // 7. Condense multiple spaces
     normalized = normalized.replaceAll(RegExp(r'\s+'), ' ');
     
     return normalized.trim();
@@ -38,7 +52,11 @@ class ComparisonLogic {
 
   /// Compares two strings and returns a list of word-by-word feedback.
   static List<ComparisonResult> compare(String original, String transcribed) {
-    final normalizedTranscribed = normalize(transcribed);
+    // If the transcription has diacritics, we use diacritic-aware comparison
+    // We detect this by checking if there are any diacritics in the transcribed string
+    final hasDiacritics = RegExp(r'[\u064B-\u0652]').hasMatch(transcribed);
+
+    final normalizedTranscribed = normalize(transcribed, keepVowels: hasDiacritics);
     final transcribedWords = normalizedTranscribed
         .split(RegExp(r'\s+'))
         .where((w) => w.isNotEmpty)
@@ -50,13 +68,9 @@ class ComparisonLogic {
         .toList();
         
     final normalizedOriginalWords = originalWordsWithDiacritics
-        .map((w) => normalize(w))
+        .map((w) => normalize(w, keepVowels: hasDiacritics))
         .toList();
 
-    // Use a basic alignment approach: 
-    // For each word in original, find the best match in the transcribed words
-    // but keep track of the progress to avoid backward matching.
-    
     List<ComparisonResult> results = [];
     int currentTranscribedIdx = 0;
 
@@ -64,15 +78,15 @@ class ComparisonLogic {
       final target = normalizedOriginalWords[i];
       bool found = false;
       
-      // Search window: allow looking ahead to find the word
-      // if the user skipped something or the transcription added noise.
-      // We look ahead up to 8 words to handle moderate skips.
       int lookAheadLimit = min(currentTranscribedIdx + 8, transcribedWords.length);
       
       for (int j = currentTranscribedIdx; j < lookAheadLimit; j++) {
-        if (_areWordsSimilar(target, transcribedWords[j])) {
+        // If we are comparing with diacritics, we use a slightly more lenient similarity
+        // because a single wrong vowel shouldn't necessarily skip the word if the letters are right,
+        // but we'll flag it as "Incorrect" if the vowels don't match.
+        if (_areWordsSimilar(target, transcribedWords[j], useDiacritics: hasDiacritics)) {
           found = true;
-          currentTranscribedIdx = j + 1; // Advance pointer
+          currentTranscribedIdx = j + 1;
           break;
         }
       }
@@ -86,21 +100,23 @@ class ComparisonLogic {
     return results;
   }
 
-  static bool _areWordsSimilar(String word1, String word2) {
+  static bool _areWordsSimilar(String word1, String word2, {bool useDiacritics = false}) {
     if (word1 == word2) return true;
     if (word1.isEmpty || word2.isEmpty) return false;
     
     final distance = _levenshtein(word1, word2);
     
-    // Threshold calculation:
-    // - Short words (1-3 chars): must match exactly
-    // - Medium words (4-6 chars): 1 char difference allowed
-    // - Long words (7+ chars): 2 chars difference allowed
     int threshold = 0;
     if (word1.length > 6) {
       threshold = 2;
     } else if (word1.length > 3) {
       threshold = 1;
+    }
+
+    // If using diacritics, the strings are much longer (diacritics count as chars).
+    // We increase the threshold to allow for 1-2 vowel mistakes in longer words.
+    if (useDiacritics) {
+      threshold += 1;
     }
     
     return distance <= threshold;

@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    volumes:
+      - hf_cache:/app/cache/huggingface
+    environment:
+      - HF_HOME=/app/cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # If the user doesn't have a GPU, the above deploy section might fail.
+    # But main.py handles CPU fallback automatically.
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  hf_cache:
