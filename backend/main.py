@@ -55,6 +55,8 @@ try:
     )
     # Force Arabic output
     forced_decoder_ids = processor.get_decoder_prompt_ids(language="arabic", task="transcribe")
+    gen_config.forced_decoder_ids = forced_decoder_ids
+    
     print("Model loaded successfully.")
 except Exception as e:
     print(f"FAILED to load medium model: {e}")
@@ -119,8 +121,7 @@ async def transcribe(file: UploadFile = File(...)):
         with torch.no_grad():
             predicted_ids = model.generate(
                 input_features, 
-                generation_config=gen_config,
-                forced_decoder_ids=forced_decoder_ids
+                generation_config=gen_config
             )
         
         transcribed_text = processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
